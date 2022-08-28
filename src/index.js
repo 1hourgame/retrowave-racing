@@ -115,10 +115,29 @@ class MyGame extends Phaser.Scene {
     }
     this.updateHorizontalLines();
 
-    this.horizontalOffset += 1;
-    if (this.horizontalOffset > DISTANCE_BETWEEN_VERTICAL_LINES) {
-      this.horizontalOffset = 0;
+    // this.horizontalOffset += 1;
+    // if (this.horizontalOffset > DISTANCE_BETWEEN_VERTICAL_LINES) {
+    //   this.horizontalOffset = 0;
+    // }
+
+    // If right part of the screen touched, decrement horizontal offset
+    if (this.input.activePointer.isDown && this.input.activePointer.x > WIDTH / 2) {
+      this.horizontalOffset -= 1;
+      // If horizontal offset is less than 0, reset it to DISTANCE_BETWEEN_VERTICAL_LINES
+      if (this.horizontalOffset < 0) {
+        this.horizontalOffset = DISTANCE_BETWEEN_VERTICAL_LINES;
+      }
     }
+    // If left part of the screen touched, increment horizontal offset
+    if (this.input.activePointer.isDown && this.input.activePointer.x < WIDTH / 2) {
+      this.horizontalOffset += 1;
+      // If horizontal offset is greater than DISTANCE_BETWEEN_VERTICAL_LINES, reset it to 0
+      if (this.horizontalOffset > DISTANCE_BETWEEN_VERTICAL_LINES) {
+        this.horizontalOffset = 0;
+      }
+    }
+
+    
 
     this.updateVerticalLines();
   }
@@ -128,7 +147,6 @@ class MyGame extends Phaser.Scene {
       const line = this.horizontalLines[i];
       const groundY = HORIZONTAL_LINES_DISTANCE * i - this.verticalOffset;
       const y = this.groundPosYToScreen(groundY);
-      //console.log(y, line);
       line.geom.y1 = y;
       line.geom.y2 = y;
     }

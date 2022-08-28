@@ -1,7 +1,7 @@
 // Phaser Retro Wave Racing Game
 import Phaser from "phaser";
 // Import background image from assets/back01.png
-import background from "./assets/back02.png";
+import background from "./assets/back03.png";
 // Import car image from assets/car.png
 import car from "./assets/car.png";
 
@@ -19,6 +19,10 @@ const DISTANCE_BETWEEN_VERTICAL_LINES =
   VERTICAL_LINES_SPREAD_WIDTH / VERTICAL_LINE_COUNT;
 
 const HORIZONTAL_LINE_COUNT = 64;
+const TREE_COUNT = 24;
+
+// Speed increment on each score, %
+const SPEED_INCREMENT = 0.02;
 
 // Distance between viewer's eyes and screen
 const VIEWER_SCREEN_DISTANCE = WIDTH / 2;
@@ -30,22 +34,20 @@ const CAR_Z_POS = 100;
 
 const BACKGROUND_TOP = 190;
 
-const ENEMY_CAR_APPEARANCE_Y = 1500;
+const ENEMY_CAR_APPEARANCE_Y = 2500;
 
-let carSpeed = 5;
-
-const X_SHIFT_SPEED = 5;
-const MAX_X_SHIFT = 300;
+const INITIAL_X_SHIFT_SPEED = 10;
+const MAX_X_SHIFT = 400;
 let xShift = 0;
 
-const ENEMY_CAR_Y_DISTANCE = 300;
+const ENEMY_CAR_Y_DISTANCE = 640;
 
 const CAR_Z_LENGTH = 50;
 
 const TREE_WIDTH = 32;
 
 const COLORS = {
-  background: 0x361b52,
+  background: 0x54175a,
   line: 0xffffff,
 };
 
@@ -88,6 +90,7 @@ class Game extends Phaser.Scene {
   }
 
   create() {
+    this.xShiftSpeed = INITIAL_X_SHIFT_SPEED;
     // array of 12 vertical lines
     this.verticalLines = [];
     this.horizontalLines = [];
@@ -103,6 +106,8 @@ class Game extends Phaser.Scene {
     // Score and high score
     this.score = 0;
     this.highScore = 0;
+
+    this.carSpeed = 8;
 
     // Load high score from localStorage
     const highScore = localStorage.getItem("highScore");
@@ -162,7 +167,7 @@ class Game extends Phaser.Scene {
     this.createEnemyCar();
 
     // Create trees
-    for (let i = 0; i < HORIZONTAL_LINE_COUNT; i++) {
+    for (let i = 0; i < TREE_COUNT; i++) {
       this.treesLeft.push(this.add.image(0, 0, "tree"));
       this.treesRight.push(this.add.image(0, 0, "tree"));
     }
@@ -183,7 +188,7 @@ class Game extends Phaser.Scene {
 
   update() {
     // Increment vertical offset
-    this.verticalOffset += carSpeed;
+    this.verticalOffset += this.carSpeed;
     // If vertical offset is greater than (HEIGHT - LINES_TOP)/HORIZONTAL_LINE_COUNT, reset it to 0
     if (this.verticalOffset > HORIZONTAL_LINES_DISTANCE) {
       this.verticalOffset = 0;
@@ -198,15 +203,15 @@ class Game extends Phaser.Scene {
       this.input.activePointer.x > WIDTH / 2
     ) {
       if (xShift > -maxCarXShift) {
-        xShift -= X_SHIFT_SPEED;
-        this.horizontalOffset -= X_SHIFT_SPEED;
+        xShift -= this.xShiftSpeed;
+        this.horizontalOffset -= this.xShiftSpeed;
         // If horizontal offset is less than 0, reset it to DISTANCE_BETWEEN_VERTICAL_LINES
         if (this.horizontalOffset < 0) {
           this.horizontalOffset = DISTANCE_BETWEEN_VERTICAL_LINES;
         }
         // shift all enemy cars
         this.enemyCars.forEach((enemyCar) => {
-          enemyCar.x -= X_SHIFT_SPEED;
+          enemyCar.x -= this.xShiftSpeed;
         });
       }
     }
@@ -216,15 +221,15 @@ class Game extends Phaser.Scene {
       this.input.activePointer.x < WIDTH / 2
     ) {
       if (xShift < maxCarXShift) {
-        xShift += X_SHIFT_SPEED;
-        this.horizontalOffset += X_SHIFT_SPEED;
+        xShift += this.xShiftSpeed;
+        this.horizontalOffset += this.xShiftSpeed;
         // If horizontal offset is greater than DISTANCE_BETWEEN_VERTICAL_LINES, reset it to 0
         if (this.horizontalOffset > DISTANCE_BETWEEN_VERTICAL_LINES) {
           this.horizontalOffset = 0;
         }
         // shift all enemy cars
         this.enemyCars.forEach((enemyCar) => {
-          enemyCar.x += X_SHIFT_SPEED;
+          enemyCar.x += this.xShiftSpeed;
         });
       }
     }
@@ -233,7 +238,7 @@ class Game extends Phaser.Scene {
 
     // Decrement enemy car's y position by carSpeed
     this.enemyCars.forEach((enemyCar) => {
-      enemyCar.y -= carSpeed;
+      enemyCar.y -= this.carSpeed;
       // If enemy car y position < 0, remove it from the array
       if (enemyCar.y < 0) {
         // Delete enemyCar.car from the scene
@@ -242,6 +247,9 @@ class Game extends Phaser.Scene {
         enemyCar.toDelete = true;
         // Increment score
         this.score++;
+        this.carSpeed += this.carSpeed * SPEED_INCREMENT;
+        this.xShiftSpeed += this.xShiftSpeed * SPEED_INCREMENT;
+
         // If score is greater than high score, update high score
         if (this.score > this.highScore) {
           this.highScore = this.score;
@@ -268,7 +276,7 @@ class Game extends Phaser.Scene {
       const lastCarMoved = ENEMY_CAR_APPEARANCE_Y - lastEnemyCar.y;
       if (
         lastCarMoved > ENEMY_CAR_Y_DISTANCE &&
-        lastCarMoved - carSpeed <= ENEMY_CAR_Y_DISTANCE
+        lastCarMoved - this.carSpeed <= ENEMY_CAR_Y_DISTANCE
       ) {
         createNewCar = true;
       }
@@ -284,14 +292,14 @@ class Game extends Phaser.Scene {
 
   updateTrees() {
     const updateTree = (tree, groundY, sign) => {
-      tree.x = this.groundPosXToScreen(sign*MAX_X_SHIFT + xShift, groundY);
+      tree.x = this.groundPosXToScreen(sign * MAX_X_SHIFT + xShift, groundY);
       tree.y = this.groundPosYToScreen(groundY);
       // Scale the tree to TREE_WIDTH pixels wide.
       const treeWidth = this.scaleToScreen(TREE_WIDTH, groundY);
       tree.setScale(treeWidth / tree.width);
       tree.setDepth(1 / groundY);
     };
-    for (let i = 0; i < HORIZONTAL_LINE_COUNT; i++) {
+    for (let i = 0; i < TREE_COUNT; i++) {
       const groundY = HORIZONTAL_LINES_DISTANCE * i - this.verticalOffset;
       updateTree(this.treesLeft[i], groundY, -1);
       updateTree(this.treesRight[i], groundY, 1);
@@ -327,7 +335,7 @@ class Game extends Phaser.Scene {
     const y = ENEMY_CAR_APPEARANCE_Y;
     enemyCar.y = this.groundPosYToScreen(y);
     // x is random between 0 and WIDTH
-    const x = Math.random() * WIDTH - WIDTH / 2 + xShift;
+    const x = Math.random() * (WIDTH - CAR_WIDTH / 2) - WIDTH / 2 + xShift;
     enemyCar.x = this.groundPosXToScreen(x, y);
     const carWidth = this.scaleToScreen(CAR_WIDTH, y);
     enemyCar.setScale(carWidth / enemyCar.width);
@@ -340,7 +348,7 @@ class Game extends Phaser.Scene {
       if (
         enemyCar.y < CAR_Z_POS + CAR_Z_LENGTH &&
         enemyCar.y > CAR_Z_POS &&
-        Math.abs(enemyCar.x) < CAR_WIDTH / 2
+        Math.abs(enemyCar.x) < CAR_WIDTH
       ) {
         // Game over
         this.scene.start("GameOver", {
@@ -400,7 +408,6 @@ class GameOver extends Phaser.Scene {
     );
     highScoreText.setOrigin(0.5);
 
-    // wait 0.5 seconds
     const self = this;
     self.timePassed = false;
     setInterval(() => {

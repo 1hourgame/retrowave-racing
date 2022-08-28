@@ -6,6 +6,7 @@ import background from "./assets/back02.png";
 import car from "./assets/car.png";
 
 import enemyCar from "./assets/car3.png";
+import tree from "./assets/tree01.png";
 
 const WIDTH = 480;
 const HEIGHT = 640;
@@ -34,12 +35,14 @@ const ENEMY_CAR_APPEARANCE_Y = 1500;
 let carSpeed = 5;
 
 const X_SHIFT_SPEED = 5;
-const MAX_X_SHIFT = 400;
+const MAX_X_SHIFT = 300;
 let xShift = 0;
 
 const ENEMY_CAR_Y_DISTANCE = 300;
 
-const CAR_Z_LENGTH = 200;
+const CAR_Z_LENGTH = 50;
+
+const TREE_WIDTH = 32;
 
 const COLORS = {
   background: 0x361b52,
@@ -61,6 +64,9 @@ class Game extends Phaser.Scene {
 
     // Load enemy car image from enemyCar
     this.load.image("enemyCar", enemyCar);
+
+    // Load tree image
+    this.load.image("tree", tree);
   }
 
   groundPosYToScreen(y) {
@@ -93,8 +99,21 @@ class Game extends Phaser.Scene {
     this.enemyCars = [];
 
     this.myCar = null;
-    
-    console.log("create");
+
+    // Score and high score
+    this.score = 0;
+    this.highScore = 0;
+
+    // Load high score from localStorage
+    const highScore = localStorage.getItem("highScore");
+    if (highScore) {
+      this.highScore = parseInt(highScore);
+    }
+
+    // trees
+    this.treesLeft = [];
+    this.treesRight = [];
+
     // Cretare vertical lines
     for (let i = 0; i < VERTICAL_LINE_COUNT; i++) {
       const x =
@@ -141,6 +160,25 @@ class Game extends Phaser.Scene {
     this.myCar = car;
 
     this.createEnemyCar();
+
+    // Create trees
+    for (let i = 0; i < HORIZONTAL_LINE_COUNT; i++) {
+      this.treesLeft.push(this.add.image(0, 0, "tree"));
+      this.treesRight.push(this.add.image(0, 0, "tree"));
+    }
+
+    // Create score text
+    this.scoreText = this.add.text(10, 10, "Score: 0", {
+      fontSize: "32px",
+      fill: "#fff",
+    });
+    this.scoreText.setDepth(1);
+    // Create high score text
+    this.highScoreText = this.add.text(10, 50, "High Score: 0", {
+      fontSize: "32px",
+      fill: "#fff",
+    });
+    this.highScoreText.setDepth(1);
   }
 
   update() {
@@ -152,12 +190,14 @@ class Game extends Phaser.Scene {
     }
     this.updateHorizontalLines();
 
+    const maxCarXShift = MAX_X_SHIFT - CAR_WIDTH / 2;
+
     // If right part of the screen touched, decrement horizontal offset
     if (
       this.input.activePointer.isDown &&
       this.input.activePointer.x > WIDTH / 2
     ) {
-      if (xShift > -MAX_X_SHIFT) {
+      if (xShift > -maxCarXShift) {
         xShift -= X_SHIFT_SPEED;
         this.horizontalOffset -= X_SHIFT_SPEED;
         // If horizontal offset is less than 0, reset it to DISTANCE_BETWEEN_VERTICAL_LINES
@@ -175,7 +215,7 @@ class Game extends Phaser.Scene {
       this.input.activePointer.isDown &&
       this.input.activePointer.x < WIDTH / 2
     ) {
-      if (xShift < MAX_X_SHIFT) {
+      if (xShift < maxCarXShift) {
         xShift += X_SHIFT_SPEED;
         this.horizontalOffset += X_SHIFT_SPEED;
         // If horizontal offset is greater than DISTANCE_BETWEEN_VERTICAL_LINES, reset it to 0
@@ -200,6 +240,16 @@ class Game extends Phaser.Scene {
         this.scene.remove(enemyCar.car);
         enemyCar.car.destroy();
         enemyCar.toDelete = true;
+        // Increment score
+        this.score++;
+        // If score is greater than high score, update high score
+        if (this.score > this.highScore) {
+          this.highScore = this.score;
+          localStorage.setItem("highScore", this.highScore);
+        }
+        // Update score text
+        this.scoreText.setText("Score: " + this.score);
+        this.highScoreText.setText("High Score: " + this.highScore);
       } else {
         enemyCar.car.y = this.groundPosYToScreen(enemyCar.y);
         enemyCar.car.x = this.groundPosXToScreen(enemyCar.x, enemyCar.y);
@@ -227,7 +277,25 @@ class Game extends Phaser.Scene {
       this.createEnemyCar();
     }
 
+    this.updateTrees();
+
     this.detectCollision();
+  }
+
+  updateTrees() {
+    const updateTree = (tree, groundY, sign) => {
+      tree.x = this.groundPosXToScreen(sign*MAX_X_SHIFT + xShift, groundY);
+      tree.y = this.groundPosYToScreen(groundY);
+      // Scale the tree to TREE_WIDTH pixels wide.
+      const treeWidth = this.scaleToScreen(TREE_WIDTH, groundY);
+      tree.setScale(treeWidth / tree.width);
+      tree.setDepth(1 / groundY);
+    };
+    for (let i = 0; i < HORIZONTAL_LINE_COUNT; i++) {
+      const groundY = HORIZONTAL_LINES_DISTANCE * i - this.verticalOffset;
+      updateTree(this.treesLeft[i], groundY, -1);
+      updateTree(this.treesRight[i], groundY, 1);
+    }
   }
 
   updateHorizontalLines() {
@@ -275,7 +343,10 @@ class Game extends Phaser.Scene {
         Math.abs(enemyCar.x) < CAR_WIDTH / 2
       ) {
         // Game over
-        this.scene.start("GameOver");
+        this.scene.start("GameOver", {
+          score: this.score,
+          highScore: this.highScore,
+        });
       }
     });
   }
@@ -284,6 +355,11 @@ class Game extends Phaser.Scene {
 class GameOver extends Phaser.Scene {
   constructor() {
     super({ key: "GameOver", active: false });
+  }
+
+  init(data) {
+    this.score = data.score;
+    this.highScore = data.highScore;
   }
 
   create() {
@@ -295,12 +371,49 @@ class GameOver extends Phaser.Scene {
       strokeThickness: 6,
     });
     gameOverText.setOrigin(0.5);
+
+    // Display score text at the center of the screen
+    const scoreText = this.add.text(
+      WIDTH / 2,
+      HEIGHT / 2 + 100,
+      "Score: " + this.score,
+      {
+        fontSize: "32px",
+        fill: "#fff",
+        stroke: "#000",
+        strokeThickness: 6,
+      }
+    );
+    scoreText.setOrigin(0.5);
+
+    // Display high score text at the center of the screen
+    const highScoreText = this.add.text(
+      WIDTH / 2,
+      HEIGHT / 2 + 150,
+      "High Score: " + this.highScore,
+      {
+        fontSize: "32px",
+        fill: "#fff",
+        stroke: "#000",
+        strokeThickness: 6,
+      }
+    );
+    highScoreText.setOrigin(0.5);
+
+    // wait 0.5 seconds
+    const self = this;
+    self.timePassed = false;
+    setInterval(() => {
+      self.timePassed = true;
+    }, 1000);
   }
 
   update() {
-    // If screen touched, restart the game
-    if (this.input.activePointer.isDown) {
-      this.scene.start("Game");
+    if (this.timePassed) {
+      // on mouse down event restart the game
+      if (this.input.activePointer.isDown) {
+        this.scene.start("Game");
+      }
     }
   }
 }

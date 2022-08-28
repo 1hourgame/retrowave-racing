@@ -24,15 +24,20 @@ const VIEWER_SCREEN_DISTANCE = WIDTH / 2;
 
 const HORIZONTAL_LINES_DISTANCE = 64;
 
-const CAR_WIDTH = 160;
+const CAR_WIDTH = 240;
 const CAR_Z_POS = 100;
 
 const BACKGROUND_TOP = 190;
 
 const ENEMY_CAR_APPEARANCE_Y = 1500;
-const ENEMY_CAR_SPAWN_RATE = 30;
 
 let carSpeed = 5;
+
+const X_SHIFT_SPEED = 5;
+const MAX_X_SHIFT = 400;
+let xShift = 0;
+
+const ENEMY_CAR_Y_DISTANCE = 300;
 
 const COLORS = {
   background: 0x361b52,
@@ -77,7 +82,7 @@ class MyGame extends Phaser.Scene {
 
   // ground x = 0 is center
   groundPosXToScreen(x, y) {
-    return WIDTH / 2 - this.scaleToScreen(x, y);
+    return WIDTH / 2 + this.scaleToScreen(x, y);
   }
 
   scaleToScreen(x, y) {
@@ -121,12 +126,13 @@ class MyGame extends Phaser.Scene {
     const carY = this.groundPosYToScreen(CAR_Z_POS);
     const car = this.add.image(0, 0, "car");
     car.setOrigin(0.5);
+    const carWidth = this.scaleToScreen(CAR_WIDTH, CAR_Z_POS);
     // Scale the car to CAR_WIDTH pixels wide.
-    car.setScale(CAR_WIDTH / car.width);
+    car.setScale(carWidth / car.width);
     car.y = carY;
     // Set the car to the middle of the screen.
     car.x = WIDTH / 2;
-    car.setDepth(CAR_Z_POS);
+    car.setDepth(1/CAR_Z_POS);
     this.myCar = car;
 
     this.createEnemyCar();
@@ -146,10 +152,17 @@ class MyGame extends Phaser.Scene {
       this.input.activePointer.isDown &&
       this.input.activePointer.x > WIDTH / 2
     ) {
-      this.horizontalOffset -= 1;
-      // If horizontal offset is less than 0, reset it to DISTANCE_BETWEEN_VERTICAL_LINES
-      if (this.horizontalOffset < 0) {
-        this.horizontalOffset = DISTANCE_BETWEEN_VERTICAL_LINES;
+      if (xShift > -MAX_X_SHIFT) {
+        xShift -= X_SHIFT_SPEED;
+        this.horizontalOffset -= X_SHIFT_SPEED;
+        // If horizontal offset is less than 0, reset it to DISTANCE_BETWEEN_VERTICAL_LINES
+        if (this.horizontalOffset < 0) {
+          this.horizontalOffset = DISTANCE_BETWEEN_VERTICAL_LINES;
+        }
+        // shift all enemy cars
+        this.enemyCars.forEach((enemyCar) => {
+          enemyCar.x -= X_SHIFT_SPEED;
+        });
       }
     }
     // If left part of the screen touched, increment horizontal offset
@@ -157,10 +170,17 @@ class MyGame extends Phaser.Scene {
       this.input.activePointer.isDown &&
       this.input.activePointer.x < WIDTH / 2
     ) {
-      this.horizontalOffset += 1;
-      // If horizontal offset is greater than DISTANCE_BETWEEN_VERTICAL_LINES, reset it to 0
-      if (this.horizontalOffset > DISTANCE_BETWEEN_VERTICAL_LINES) {
-        this.horizontalOffset = 0;
+      if (xShift < MAX_X_SHIFT) {
+        xShift += X_SHIFT_SPEED;
+        this.horizontalOffset += X_SHIFT_SPEED;
+        // If horizontal offset is greater than DISTANCE_BETWEEN_VERTICAL_LINES, reset it to 0
+        if (this.horizontalOffset > DISTANCE_BETWEEN_VERTICAL_LINES) {
+          this.horizontalOffset = 0;
+        }
+        // shift all enemy cars
+        this.enemyCars.forEach((enemyCar) => {
+          enemyCar.x += X_SHIFT_SPEED;
+        });
       }
     }
 
@@ -181,14 +201,26 @@ class MyGame extends Phaser.Scene {
         const carWidth = this.scaleToScreen(CAR_WIDTH, enemyCar.y);
         // Scale the enemyCar.car to carWidth pixels wide.
         enemyCar.car.setScale(carWidth / enemyCar.car.width);
-        enemyCar.car.setDepth(enemyCar.car.y);
+        enemyCar.car.setDepth(1/enemyCar.y);
+
+        console.log(enemyCar.car)
       }
     });
     // delete cars with toDelete property set to true
     this.enemyCars = this.enemyCars.filter((car) => !car.toDelete);
 
-    // Add new enemy car with probability 1/ENEMY_CAR_SPAWN_RATE
-    if (Math.random() < 1 / ENEMY_CAR_SPAWN_RATE) {
+    let createNewCar = !this.enemyCars.length;
+    if (this.enemyCars.length) {
+      const lastEnemyCar = this.enemyCars[this.enemyCars.length - 1];
+      const lastCarMoved = ENEMY_CAR_APPEARANCE_Y - lastEnemyCar.y;
+      if (
+        lastCarMoved > ENEMY_CAR_Y_DISTANCE &&
+        lastCarMoved - carSpeed <= ENEMY_CAR_Y_DISTANCE
+      ) {
+        createNewCar = true;
+      }
+    }
+    if (createNewCar) {
       this.createEnemyCar();
     }
   }
@@ -222,7 +254,7 @@ class MyGame extends Phaser.Scene {
     const y = ENEMY_CAR_APPEARANCE_Y;
     enemyCar.y = this.groundPosYToScreen(y);
     // x is random between 0 and WIDTH
-    const x = Math.random() * WIDTH;
+    const x = Math.random() * WIDTH - WIDTH / 2 + xShift;
     enemyCar.x = this.groundPosXToScreen(x, y);
     const carWidth = this.scaleToScreen(CAR_WIDTH, y);
     enemyCar.setScale(carWidth / enemyCar.width);

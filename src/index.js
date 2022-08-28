@@ -39,28 +39,20 @@ let xShift = 0;
 
 const ENEMY_CAR_Y_DISTANCE = 300;
 
+const CAR_Z_LENGTH = 200;
+
 const COLORS = {
   background: 0x361b52,
   line: 0xffffff,
 };
 
-class MyGame extends Phaser.Scene {
+class Game extends Phaser.Scene {
   constructor() {
-    super();
-    // array of 12 vertical lines
-    this.verticalLines = [];
-    this.horizontalLines = [];
-
-    this.verticalOffset = 0;
-    this.horizontalOffset = 0;
-
-    // Enemy car array, each car contains {car, x, y}
-    this.enemyCars = [];
-
-    this.myCar = null;
+    super({ key: "Game", active: true });
   }
 
   preload() {
+    console.log("preload");
     // Load background image from background
     this.load.image("back", background);
 
@@ -90,6 +82,19 @@ class MyGame extends Phaser.Scene {
   }
 
   create() {
+    // array of 12 vertical lines
+    this.verticalLines = [];
+    this.horizontalLines = [];
+
+    this.verticalOffset = 0;
+    this.horizontalOffset = 0;
+
+    // Enemy car array, each car contains {car, x, y}
+    this.enemyCars = [];
+
+    this.myCar = null;
+    
+    console.log("create");
     // Cretare vertical lines
     for (let i = 0; i < VERTICAL_LINE_COUNT; i++) {
       const x =
@@ -132,7 +137,7 @@ class MyGame extends Phaser.Scene {
     car.y = carY;
     // Set the car to the middle of the screen.
     car.x = WIDTH / 2;
-    car.setDepth(1/CAR_Z_POS);
+    car.setDepth(1 / CAR_Z_POS);
     this.myCar = car;
 
     this.createEnemyCar();
@@ -201,9 +206,7 @@ class MyGame extends Phaser.Scene {
         const carWidth = this.scaleToScreen(CAR_WIDTH, enemyCar.y);
         // Scale the enemyCar.car to carWidth pixels wide.
         enemyCar.car.setScale(carWidth / enemyCar.car.width);
-        enemyCar.car.setDepth(1/enemyCar.y);
-
-        console.log(enemyCar.car)
+        enemyCar.car.setDepth(1 / enemyCar.y);
       }
     });
     // delete cars with toDelete property set to true
@@ -223,6 +226,8 @@ class MyGame extends Phaser.Scene {
     if (createNewCar) {
       this.createEnemyCar();
     }
+
+    this.detectCollision();
   }
 
   updateHorizontalLines() {
@@ -260,6 +265,44 @@ class MyGame extends Phaser.Scene {
     enemyCar.setScale(carWidth / enemyCar.width);
     this.enemyCars.push({ car: enemyCar, x, y });
   }
+
+  detectCollision() {
+    // Check if any enemy car collides with myCar
+    this.enemyCars.forEach((enemyCar) => {
+      if (
+        enemyCar.y < CAR_Z_POS + CAR_Z_LENGTH &&
+        enemyCar.y > CAR_Z_POS &&
+        Math.abs(enemyCar.x) < CAR_WIDTH / 2
+      ) {
+        // Game over
+        this.scene.start("GameOver");
+      }
+    });
+  }
+}
+
+class GameOver extends Phaser.Scene {
+  constructor() {
+    super({ key: "GameOver", active: false });
+  }
+
+  create() {
+    // Display game over text at the center of the screen
+    const gameOverText = this.add.text(WIDTH / 2, HEIGHT / 2, "Game Over", {
+      fontSize: "64px",
+      fill: "#fff",
+      stroke: "#000",
+      strokeThickness: 6,
+    });
+    gameOverText.setOrigin(0.5);
+  }
+
+  update() {
+    // If screen touched, restart the game
+    if (this.input.activePointer.isDown) {
+      this.scene.start("Game");
+    }
+  }
 }
 
 const config = {
@@ -267,7 +310,7 @@ const config = {
   parent: "retro-wave-racing",
   width: WIDTH,
   height: HEIGHT,
-  scene: MyGame,
+  scene: [Game, GameOver],
   backgroundColor: COLORS.background,
   pixelArt: true,
 
